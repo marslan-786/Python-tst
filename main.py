@@ -89,22 +89,29 @@ async def get_session_key():
 
 def normalize_record(rec):
     try:
-        if isinstance(rec, list) and len(rec) >= 6:
-            if "0.2,0,0,0" in str(rec[0]) or str(rec[0]).startswith("0,0"):
+        if isinstance(rec, list) and len(rec) >= 5:
+            if "0.2,0,0" in str(rec[0]) or str(rec[0]).startswith("0,0"):
                 return None
+            
+            # Message is sometimes at index 5 and sometimes at 4, handling both
+            msg = str(rec[5]) if len(rec) > 5 and rec[5] else str(rec[4])
             return {
                 "Date-and-time": str(rec[0]),
                 "Service": str(rec[3]),
                 "Number": str(rec[2]),
-                "Full_message": str(rec[5]) if rec[5] else str(rec[4])
+                "Full_message": msg
             }
-    except Exception:
-        pass
+        else:
+            print(f"⚠️ Record is not a valid list or too short: {rec}")
+    except Exception as e:
+        print(f"❌ Record Parse Error: {e} -> {rec}")
     return None
 
 async def send_vip_card(chat_id, raw_record, is_test=False):
     record = normalize_record(raw_record)
-    if not record: return
+    if not record: 
+        print("❌ Could not send: Record data is invalid/empty.")
+        return
     
     service = record.get("Service", "Unknown")
     number = record.get("Number", "N/A")
@@ -112,6 +119,8 @@ async def send_vip_card(chat_id, raw_record, is_test=False):
     
     otp_match = re.search(r'\d{3}[-\s]?\d{3}|\d{4,6}', raw_msg)
     otp = otp_match.group(0) if otp_match else "N/A"
+
+    print(f"⚙️ Preparing to send OTP -> Number: {number} | Code: {otp}")
 
     test_badge = "🟢 <b>[TEST MESSAGE]</b>\n" if is_test else ""
 
@@ -161,12 +170,12 @@ async def send_vip_card(chat_id, raw_record, is_test=False):
     }
 
     try:
-        print(f"📤 Sending message to group {chat_id}...")
+        print(f"📤 Hitting Telegram API to send message to group: {chat_id} ...")
         r = await global_client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload)
         if r.status_code == 200:
-            print("✅ Message Sent to Group Successfully!")
+            print(f"✅ Message Sent to Group Successfully!")
         else:
-            print(f"❌ Telegram API Error: {r.status_code} - {r.text}")
+            print(f"❌ Telegram API Error [{r.status_code}]: {r.text}")
     except Exception as e:
         print(f"❌ Telegram Send Exception: {e}")
 
@@ -195,14 +204,12 @@ async def background_otp_fetcher(app: Application):
 
             url = f"http://185.2.83.39/ints/agent/res/data_smscdr.php?fdate1={today}%2000:00:00&fdate2={today}%2023:59:59&frange=&fclient=&fnum=&fcli=&fgdate=&fgmonth=&fgrange=&fgclient=&fgnumber=&fgcli=&fg=0&sesskey={sesskey}&sEcho=1&iColumns=9&sColumns=%2C%2C%2C%2C%2C%2C%2C%2C&iDisplayStart=0&iDisplayLength=25&mDataProp_0=0&sSearch_0=&bRegex_0=false&bSearchable_0=true&bSortable_0=true&mDataProp_1=1&sSearch_1=&bRegex_1=false&bSearchable_1=true&bSortable_1=true&mDataProp_2=2&sSearch_2=&bRegex_2=false&bSearchable_2=true&bSortable_2=true&mDataProp_3=3&sSearch_3=&bRegex_3=false&bSearchable_3=true&bSortable_3=true&mDataProp_4=4&sSearch_4=&bRegex_4=false&bSearchable_4=true&bSortable_4=true&mDataProp_5=5&sSearch_5=&bRegex_5=false&bSearchable_5=true&bSortable_5=true&mDataProp_6=6&sSearch_6=&bRegex_6=false&bSearchable_6=true&bSortable_6=true&mDataProp_7=7&sSearch_7=&bRegex_7=false&bSearchable_7=true&bSortable_7=true&mDataProp_8=8&sSearch_8=&bRegex_8=false&bSearchable_8=true&bSortable_8=false&sSearch=&bRegex=false&iSortCol_0=0&sSortDir_0=desc&iSortingCols=1&_=1774500971502"
             
-            print(f"📡 Hitting API endpoint... (Session: {sesskey})")
             r = await global_client.get(url, headers=headers)
             
             try:
                 data = r.json()
-                print("✅ API Responded with JSON Data!")
             except Exception:
-                print("🔄 API response invalid/Session Expired! Re-login initiating...")
+                print("🔄 API Data Error/Session Expired! Re-login initiating...")
                 await login_to_panel()
                 sesskey = await get_session_key()
                 if sesskey:
@@ -210,7 +217,6 @@ async def background_otp_fetcher(app: Application):
                 r = await global_client.get(url, headers=headers)
                 try:
                     data = r.json()
-                    print("✅ API Responded with JSON Data after Re-login!")
                 except Exception as e:
                     print(f"❌ Failed again after re-login: {e}")
                     await asyncio.sleep(5)
@@ -218,47 +224,43 @@ async def background_otp_fetcher(app: Application):
 
             records = data.get("aaData", [])
             if not isinstance(records, list):
-                print("⚠️ 'aaData' is not a list! Skipping...")
+                print("⚠️ 'aaData' is missing or not a list! Skipping...")
                 await asyncio.sleep(5)
                 continue
 
-            print(f"📊 Found {len(records)} records from API.")
-
+            # Check if there are real records or just the summary row (1 record)
+            valid_records = [rec for rec in records if normalize_record(rec) is not None]
+            
             if is_first_run:
-                print("🚀 First run detected. Processing first OTP as test...")
-                if records:
-                    for rec in records:
-                        norm = normalize_record(rec)
-                        if norm:
-                            await send_vip_card(TARGET_GROUP_ID, norm, is_test=True)
-                            break
-                
-                for rec in records:
+                print(f"🚀 First run: Found {len(valid_records)} valid records. Attempting test send...")
+                if valid_records:
+                    await send_vip_card(TARGET_GROUP_ID, valid_records[0], is_test=True)
+                else:
+                    print("⚠️ No valid OTP found in the initial data to send as a test.")
+
+                for rec in valid_records:
                     norm = normalize_record(rec)
                     if norm:
                         sig = f"{norm['Date-and-time']}|{norm['Number']}"
                         seen_signatures.add(sig)
                 
                 is_first_run = False
-                print("✅ First run complete. Waiting for new OTPs in background...")
+                print("✅ Initial setup complete. Waiting for NEW OTPs in background...")
                 await asyncio.sleep(5)
                 continue
 
             new_count = 0
-            for rec in reversed(records):
+            for rec in reversed(valid_records):
                 norm = normalize_record(rec)
                 if not norm: continue
                 sig = f"{norm['Date-and-time']}|{norm['Number']}"
                 
                 if sig not in seen_signatures:
-                    print(f"✨ New OTP Found: {norm['Number']}")
+                    print(f"✨ New OTP Detected: {norm['Number']}")
                     await send_vip_card(TARGET_GROUP_ID, norm)
                     seen_signatures.add(sig)
                     new_count += 1
             
-            if new_count > 0:
-                print(f"✅ Processed {new_count} new OTPs.")
-
             if len(seen_signatures) > 5000:
                 seen_signatures.clear()
 
@@ -269,7 +271,7 @@ async def background_otp_fetcher(app: Application):
         await asyncio.sleep(5)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📩 Start command received!")
+    print("📩 Start command triggered by user!")
     welcome_msg = (
         f"🌟 <b>𝗪𝗘𝗟𝗖𝗢𝗠𝗘 𝗧𝗢 𝗩𝗜𝗣 𝗢𝗧𝗣 𝗕𝗢𝗧</b> 🌟\n\n"
         f"👑 <b>Status:</b> <code>System is Active & Running!</code>\n"
