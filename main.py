@@ -219,13 +219,13 @@ async def background_otp_fetcher(app: Application):
                     data = r.json()
                 except Exception as e:
                     print(f"❌ Failed again after re-login: {e}")
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)
                     continue
 
             records = data.get("aaData", [])
             if not isinstance(records, list):
                 print("⚠️ 'aaData' is missing or not a list! Skipping...")
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
                 continue
 
             # Check if there are real records or just the summary row (1 record)
@@ -246,7 +246,7 @@ async def background_otp_fetcher(app: Application):
                 
                 is_first_run = False
                 print("✅ Initial setup complete. Waiting for NEW OTPs in background...")
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
                 continue
 
             new_count = 0
@@ -268,7 +268,7 @@ async def background_otp_fetcher(app: Application):
             print(f"⚠️ Fetcher Loop Error: {e}")
             traceback.print_exc()
         
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("📩 Start command triggered by user!")
