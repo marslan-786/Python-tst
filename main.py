@@ -92,8 +92,6 @@ def normalize_record(rec):
         if isinstance(rec, list) and len(rec) >= 5:
             if "0.2,0,0" in str(rec[0]) or str(rec[0]).startswith("0,0"):
                 return None
-            
-            # Message is sometimes at index 5 and sometimes at 4, handling both
             msg = str(rec[5]) if len(rec) > 5 and rec[5] else str(rec[4])
             return {
                 "Date-and-time": str(rec[0]),
@@ -185,90 +183,85 @@ async def background_otp_fetcher(app: Application):
     global_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
     
     await login_to_panel()
-    sesskey = await get_session_key()
 
     while True:
         try:
-            today = datetime.now().strftime('%Y-%m-%d')
-            
-            headers = {
-                "Host": "185.2.83.39",
-                "Connection": "keep-alive",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": "http://185.2.83.39/ints/agent/SMSCDRReports",
-                "Accept-Encoding": "gzip, deflate",
-                "Accept-Language": "en-US,en;q=0.9,ur-PK;q=0.8,ur;q=0.7"
-            }
-
-            url = f"http://185.2.83.39/ints/agent/res/data_smscdr.php?fdate1={today}%2000:00:00&fdate2={today}%2023:59:59&frange=&fclient=&fnum=&fcli=&fgdate=&fgmonth=&fgrange=&fgclient=&fgnumber=&fgcli=&fg=0&sesskey={sesskey}&sEcho=1&iColumns=9&sColumns=%2C%2C%2C%2C%2C%2C%2C%2C&iDisplayStart=0&iDisplayLength=25&mDataProp_0=0&sSearch_0=&bRegex_0=false&bSearchable_0=true&bSortable_0=true&mDataProp_1=1&sSearch_1=&bRegex_1=false&bSearchable_1=true&bSortable_1=true&mDataProp_2=2&sSearch_2=&bRegex_2=false&bSearchable_2=true&bSortable_2=true&mDataProp_3=3&sSearch_3=&bRegex_3=false&bSearchable_3=true&bSortable_3=true&mDataProp_4=4&sSearch_4=&bRegex_4=false&bSearchable_4=true&bSortable_4=true&mDataProp_5=5&sSearch_5=&bRegex_5=false&bSearchable_5=true&bSortable_5=true&mDataProp_6=6&sSearch_6=&bRegex_6=false&bSearchable_6=true&bSortable_6=true&mDataProp_7=7&sSearch_7=&bRegex_7=false&bSearchable_7=true&bSortable_7=true&mDataProp_8=8&sSearch_8=&bRegex_8=false&bSearchable_8=true&bSortable_8=false&sSearch=&bRegex=false&iSortCol_0=0&sSortDir_0=desc&iSortingCols=1&_=1774500971502"
-            
-            r = await global_client.get(url, headers=headers)
-            
-            try:
-                data = r.json()
-            except Exception:
-                print("🔄 API Data Error/Session Expired! Re-login initiating...")
+            sesskey = await get_session_key()
+            if not sesskey:
                 await login_to_panel()
                 sesskey = await get_session_key()
-                if sesskey:
-                    url = url.replace(re.search(r"sesskey=([A-Za-z0-9=]*)", url).group(1), sesskey)
+                
+            if sesskey:
+                today = datetime.now().strftime('%Y-%m-%d')
+                
+                headers = {
+                    "Host": "185.2.83.39",
+                    "Connection": "keep-alive",
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": "http://185.2.83.39/ints/agent/SMSCDRReports",
+                    "Accept-Encoding": "gzip, deflate",
+                    "Accept-Language": "en-US,en;q=0.9,ur-PK;q=0.8,ur;q=0.7"
+                }
+
+                url = f"http://185.2.83.39/ints/agent/res/data_smscdr.php?fdate1={today}%2000:00:00&fdate2={today}%2023:59:59&frange=&fclient=&fnum=&fcli=&fgdate=&fgmonth=&fgrange=&fgclient=&fgnumber=&fgcli=&fg=0&sesskey={sesskey}&sEcho=1&iColumns=9&sColumns=%2C%2C%2C%2C%2C%2C%2C%2C&iDisplayStart=0&iDisplayLength=25&mDataProp_0=0&sSearch_0=&bRegex_0=false&bSearchable_0=true&bSortable_0=true&mDataProp_1=1&sSearch_1=&bRegex_1=false&bSearchable_1=true&bSortable_1=true&mDataProp_2=2&sSearch_2=&bRegex_2=false&bSearchable_2=true&bSortable_2=true&mDataProp_3=3&sSearch_3=&bRegex_3=false&bSearchable_3=true&bSortable_3=true&mDataProp_4=4&sSearch_4=&bRegex_4=false&bSearchable_4=true&bSortable_4=true&mDataProp_5=5&sSearch_5=&bRegex_5=false&bSearchable_5=true&bSortable_5=true&mDataProp_6=6&sSearch_6=&bRegex_6=false&bSearchable_6=true&bSortable_6=true&mDataProp_7=7&sSearch_7=&bRegex_7=false&bSearchable_7=true&bSortable_7=true&mDataProp_8=8&sSearch_8=&bRegex_8=false&bSearchable_8=true&bSortable_8=false&sSearch=&bRegex=false&iSortCol_0=0&sSortDir_0=desc&iSortingCols=1&_=1774500971502"
+                
                 r = await global_client.get(url, headers=headers)
+                
                 try:
                     data = r.json()
-                except Exception as e:
-                    print(f"❌ Failed again after re-login: {e}")
-                    await asyncio.sleep(15)
+                except Exception:
+                    print("🔄 API Data Error/Session Expired! Retrying on next loop...")
+                    await asyncio.sleep(16)
                     continue
 
-            records = data.get("aaData", [])
-            if not isinstance(records, list):
-                print("⚠️ 'aaData' is missing or not a list! Skipping...")
-                await asyncio.sleep(15)
-                continue
+                records = data.get("aaData", [])
+                if not isinstance(records, list):
+                    print("⚠️ 'aaData' is missing or not a list! Skipping...")
+                    await asyncio.sleep(16)
+                    continue
 
-            # Check if there are real records or just the summary row (1 record)
-            valid_records = [rec for rec in records if normalize_record(rec) is not None]
-            
-            if is_first_run:
-                print(f"🚀 First run: Found {len(valid_records)} valid records. Attempting test send...")
-                if valid_records:
-                    await send_vip_card(TARGET_GROUP_ID, valid_records[0], is_test=True)
-                else:
-                    print("⚠️ No valid OTP found in the initial data to send as a test.")
+                valid_records = [rec for rec in records if normalize_record(rec) is not None]
+                
+                if is_first_run:
+                    print(f"🚀 First run: Found {len(valid_records)} valid records. Attempting test send...")
+                    if valid_records:
+                        await send_vip_card(TARGET_GROUP_ID, valid_records[0], is_test=True)
+                    else:
+                        print("⚠️ No valid OTP found in the initial data to send as a test.")
 
-                for rec in valid_records:
+                    for rec in valid_records:
+                        norm = normalize_record(rec)
+                        if norm:
+                            sig = f"{norm['Date-and-time']}|{norm['Number']}"
+                            seen_signatures.add(sig)
+                    
+                    is_first_run = False
+                    print("✅ Initial setup complete. Waiting for NEW OTPs in background...")
+                    await asyncio.sleep(16)
+                    continue
+
+                new_count = 0
+                for rec in reversed(valid_records):
                     norm = normalize_record(rec)
-                    if norm:
-                        sig = f"{norm['Date-and-time']}|{norm['Number']}"
+                    if not norm: continue
+                    sig = f"{norm['Date-and-time']}|{norm['Number']}"
+                    
+                    if sig not in seen_signatures:
+                        print(f"✨ New OTP Detected: {norm['Number']}")
+                        await send_vip_card(TARGET_GROUP_ID, norm)
                         seen_signatures.add(sig)
+                        new_count += 1
                 
-                is_first_run = False
-                print("✅ Initial setup complete. Waiting for NEW OTPs in background...")
-                await asyncio.sleep(15)
-                continue
-
-            new_count = 0
-            for rec in reversed(valid_records):
-                norm = normalize_record(rec)
-                if not norm: continue
-                sig = f"{norm['Date-and-time']}|{norm['Number']}"
-                
-                if sig not in seen_signatures:
-                    print(f"✨ New OTP Detected: {norm['Number']}")
-                    await send_vip_card(TARGET_GROUP_ID, norm)
-                    seen_signatures.add(sig)
-                    new_count += 1
-            
-            if len(seen_signatures) > 5000:
-                seen_signatures.clear()
+                if len(seen_signatures) > 5000:
+                    seen_signatures.clear()
 
         except Exception as e:
             print(f"⚠️ Fetcher Loop Error: {e}")
             traceback.print_exc()
         
-        await asyncio.sleep(15)
+        await asyncio.sleep(16)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("📩 Start command triggered by user!")
